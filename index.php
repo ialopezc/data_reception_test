@@ -1,52 +1,86 @@
 <?php
+// Verifica si no hay parámetros en la solicitud
 if (!$_REQUEST) {
-    return ['validacion' => false, 'msg' => "Sin parámetros"];
+    var_dump(['validacion' => false, 'msg' => "Sin parámetros"]);
 }
 
 try {
     $path = 'logs';
 
+    // Verifica si el directorio 'logs' no existe y lo crea si es necesario
     if (!is_dir($path)) {
-        // El directorio no existe, así que lo creamos
         if (mkdir($path, 0777, true)) {
-            echo "Directorio creado exitosamente.";
+            var_dump("Directorio creado exitosamente.");
         } else {
-            echo "Error al crear el directorio.";
+            var_dump("Error al crear el directorio.");
         }
     } else {
-        echo "El directorio ya existe.";
+        var_dump("El directorio ya existe.");
     }
-    
-    $dateLog = date("Y-m-d__H-i-s");
 
+    // Genera un nombre de archivo de log basado en la fecha y hora actual
+    $dateLog = date("Y-m-d__H-i-s");
     $logFile = fopen("logs/log-$dateLog.log", 'a') or die("Error creando archivo");
 
-    $httpReferer = isset($_SERVER['HTTP_REFERER']) ?
-        $_SERVER['HTTP_REFERER'] : (isset($_SERVER['HTTP_X_APP_ORIGIN']) ?
-            $_SERVER['HTTP_X_APP_ORIGIN'] : (isset($_SERVER['HTTP_AUTHORIZATION']) ?
-                $_SERVER['HTTP_AUTHORIZATION'] : $_SERVER['REMOTE_ADDR']));
+    // Obtiene el recurso solicitado
+    $httpRefererName = null;
+    $httpReferer = null;
+    $possibleSources = [
+        'HTTP_HOST',
+        'SERVER_NAME',
+        'REQUEST_URI',
+        'HTTP_REFERER',
+        'HTTP_ORIGIN',
+        'HTTP_X_APP_ORIGIN',
+        'HTTP_AUTHORIZATION',
+        'REMOTE_ADDR',
+        'SERVER_ADDR'
+    ];
 
-    $tipo = gettype($_REQUEST);
-
-    $metodo = $_SERVER["REQUEST_METHOD"];
-
-    // Guarda de donde proviene
-    fwrite($logFile, date("Y/m/d H:i:s") . " Viene desede = $httpReferer \n") or die("Error escribiendo en el archivo");
-
-    // Guarda de donde proviene
-    fwrite($logFile, date("Y/m/d H:i:s") . " Utilizó = $metodo \n") or die("Error escribiendo en el archivo");
-
-    // Guarda el registro completo
-    fwrite($logFile, date("Y/m/d H:i:s") . " Tipo de datos = $tipo \n") or die("Error escribiendo en el archivo");
-
-    // Guarda cada uno de los campos incluidos
-    foreach ($_REQUEST as $nombre_campo => $valor) {
-        $asignacion = $nombre_campo . " = '" . trim($valor) . "'";
-        fwrite($logFile, date("Y/m/d H:i:s") . " $asignacion \n") or die("Error escribiendo en el archivo");
+    // Busca la primera referencia válida en las posibles fuentes
+    foreach ($possibleSources as $source) {
+        if (isset($_SERVER[$source])) {
+            $httpRefererName = $source;
+            $httpReferer = $_SERVER[$source];
+            break;
+        }
     }
 
+    // Array de retorno
+    $datos;
+
+    // Guarda la referencia del solicitante en el archivo de log
+    $datos['httpRefererName'] = $httpRefererName;
+    $datos['httpReferer'] = $httpReferer;
+    fwrite($logFile, date("Y/m/d H:i:s") . " Solicitud desde = $httpRefererName: $httpReferer \n") or die("Error escribiendo en el archivo");
+
+    // Guarda el método de la solicitud en el archivo de log
+    $method = $_SERVER["REQUEST_METHOD"];
+    $datos['method'] = $method;
+    fwrite($logFile, date("Y/m/d H:i:s") . " Método = $method \n") or die("Error escribiendo en el archivo");
+
+    // Guarda el puerto de la solicitud en el archivo de log
+    $httpRefererPort = $_SERVER['SERVER_PORT'];
+    $datos['httpRefererPort'] = $httpRefererPort;
+    fwrite($logFile, date("Y/m/d H:i:s") . " Puerto = $httpRefererPort \n") or die("Error escribiendo en el archivo");
+
+    // Guarda el tipo de datos de la solicitud en el archivo de log
+    $typeData = gettype($_REQUEST);
+    $datos['typeData'] = $typeData;
+    fwrite($logFile, date("Y/m/d H:i:s") . " Tipo de datos = $typeData \n") or die("Error escribiendo en el archivo");
+
+    // Guarda cada uno de los campos incluidos en la solicitud en el archivo de log
+    foreach ($_REQUEST as $name => $value) {
+        $assignment = $name . " = '" . trim($value) . "'";
+        $datos[$name] = trim($value);
+        fwrite($logFile, date("Y/m/d H:i:s") . " $assignment \n") or die("Error escribiendo en el archivo");
+    }
+
+    // Cierra el archivo de log
     fclose($logFile);
-    return ['validacion' => true, 'msg' => "Datos recibidos"];
+
+    var_dump(['validacion' => true, 'msg' => "Datos recibidos", 'datos' => $datos]);
 } catch (Exception $e) {
-    return ['validacion' => false, 'msg' => "Error al crear log \n $e"];
+    // Manejo de excepciones
+    var_dump(['validacion' => false, 'msg' => "Error: " . $e->getMessage()]);
 }
